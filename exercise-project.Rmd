@@ -1,0 +1,75 @@
+---
+title: "Exercise prediction project"
+author: "Suzanne Garland"
+date: "May 23, 2015"
+output: html_document
+---
+
+## Summary
+
+The purpose of this project is to predict the style or accuracy of an exercise from motion sensor data. A simple CART decision tree model was able to determine which of five variations of an exercise a person was doing with almost 50% accuracy. Accuracy is better than 60% when the exercise was done with correct form, but the model was not so accurate in separating one incorrect form from another.
+
+## Data
+
+The data came from the Human Activity Recognition project cited below, which used motion sensors to measure movement of subjects performing weight lifting activities using dumbbells.
+
+> Ugulino, W.; Cardador, D.; Vega, K.; Velloso, E.; Milidiu, R.; Fuks, H. Wearable Computing: Accelerometers' Data Classification of Body Postures and Movements. Proceedings of 21st Brazilian Symposium on Artificial Intelligence. Advances in Artificial Intelligence - SBIA 2012. In: Lecture Notes in Computer Science. , pp. 52-61. Curitiba, PR: Springer Berlin / Heidelberg, 2012. ISBN 978-3-642-34458-9. DOI: 10.1007/978-3-642-34459-6_6. http://groupware.les.inf.puc-rio.br/har#ixzz3az3zIDcQ
+
+Data cleaning steps converted measurements to numeric values, omitted data elements where values were missing, and also omitted columns that referred to the form of the initial data collection. This left 52 variables that could be used as predictors.
+
+```[r]
+## read files
+setwd("/Users/suzanne/Documents/machine learning")
+pml.training <- read.csv("pml-training.csv", colClasses="character")
+pml.testing <- read.csv("pml-testing.csv", colClasses="character")
+
+## convert measures to numeric
+pml.training[8:159] <- sapply(pml.training[8:159], as.numeric)
+pml.testing[8:159] <- sapply(pml.testing[8:159], as.numeric)
+## convert outcome to factor
+pml.training$classe <- as.factor(pml.training$classe)
+
+## use non-missing only
+nonmissing <- !sapply(pml.training, anyNA)
+nonmissing[1:7] <- rep(FALSE, 7)
+pml.training <- pml.training[, nonmissing]
+pml.testing <- pml.testing[, nonmissing]
+```
+
+## Data Slicing
+
+Given the relatively large size of the data, it was divided randomly into training and test data sets of approximately equal size.
+
+```[r]
+library(caret)
+trainset <- createDataPartition(pml.training$classe, list=FALSE)
+set.seed(1122)
+training <- pml.training[trainset, ]
+testing <- pml.training[-trainset, ]
+```
+
+## Decision Tree Model
+
+Useful applications of exercise detection would depend on getting answers in real time, so that corrective information could be displayed to the person doing the exercise. With computational economy in mind, I looked to a simple decision tree model using the rpart method in the caret package of R.
+
+The resulting decision tree relied on just four of the 52 available predictors, focusing on forearm movements and the movements of the belt and dumbbell.
+
+```[r]
+## decision tree model
+M <- train(classe ~ ., data=training, method="rpart")
+print(M$finalModel)
+```
+
+The model was 49% accurate when applied to the training set, with a 95% confidence interval placing the accuracy between 47.93% and 49.91%. However, the accuracy was better for class A, in which participants did the exercise correctly. Class A had sensitivity of 90.79% and specificity of 61.04%. This suggests that the model is better at telling correct from incorrect form than it is at distinguishing one incorrect form from another. The same measures were not significantly different when applied to the testing set. The 49% accuracy rate on the testing set validates the model's value as a prediction mechanism. 
+
+```[r]
+## confusion matrix on training set
+confusionMatrix(predict(M, training), training$classe)
+
+## confusion matrix on test set
+confusionMatrix(predict(M, testing), testing$classe)
+```
+## Conclusion
+
+The success in predicting the style of exercise suggests that motion sensors can be used to determine not just the quanity of exercise but the quality of exercise.
+
